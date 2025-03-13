@@ -1,12 +1,15 @@
 import '@mantine/core/styles.css';
-
 import React from 'react';
 import { ColorSchemeScript, mantineHtmlProps, MantineProvider } from '@mantine/core';
 import { theme } from '../theme';
 
+import { HeaderMegaMenu } from '@/components/organisms/HeaderMegaMenu';
+
+import { FooterCentered } from '@/components/organisms/FooterCentered';
+
 export const metadata = {
-  title: 'Mantine Next.js template',
-  description: 'I am using Mantine with Next.js!',
+  title: 'Poczekalnia - IPZ',
+  description: 'Projekt realizowany w ramach zajęć IPZ',
 };
 
 export default function RootLayout({ children }: { children: any }) {
@@ -21,7 +24,13 @@ export default function RootLayout({ children }: { children: any }) {
         />
       </head>
       <body>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <MantineProvider theme={theme}>
+          <HeaderMegaMenu />
+          <main style={{ paddingTop: '60px' }}>
+            {children}
+          </main>
+          <FooterCentered />
+        </MantineProvider>
       </body>
     </html>
   );
