@@ -51,57 +51,78 @@ export function AuthenticationForm(props: PaperProps) {
     setLoading(true);
     setError('');
     
+    const formData = new URLSearchParams();
+    formData.append('username', values.username);
+    formData.append('password', values.password);
+    
+    // Debug: Log request details
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    console.log('API URL:', API_URL);
+    console.log('Request payload:', formData.toString());
+    
     try {
-      const endpoint = type === 'login' ? 'auth/login' : 'users/add';
-      const response = await fetch(`https://dummyjson.com/${endpoint}`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      // Try connecting to Docker container
+      const response = await fetch(`${API_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          type === 'login'
-            ? {
-                username: values.username,
-                password: values.password,
-                expiresInMins: 30,
-              }
-            : {
-                username: values.username,
-                password: values.password,
-                email: values.email,
-                firstName: values.name,
-              }
-        ),
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': '*/*',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: formData.toString(),
+        signal: controller.signal,
+        credentials: 'include',
+        mode: 'cors' // Explicitly set CORS mode
       });
       
-      const data = await response.json();
+      clearTimeout(timeoutId);
+      
+      // Enhanced debugging
+      console.log('Full response:', response);
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers));
       
       if (!response.ok) {
-        throw new Error(data.message || `${upperFirst(type)} failed`);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Login failed: ${response.status} ${errorText}`);
       }
       
-      console.log(`${upperFirst(type)} successful:`, data);
-      
-      if (type === 'login') {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data));
+      if (response.status === 200) {
+        console.log('Login successful');
+        localStorage.setItem('token', 'temporary-token');
+        localStorage.setItem('user', JSON.stringify({ username: values.username }));
         router.push('/poczekalnia');
-      } else {
-        toggle();
-        setError('Registration successful. Please log in.');
       }
+      
     } catch (err) { 
+      console.error('Network error details:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
+      
       if (err instanceof Error) {
-        setError(err.message);
+        if (err.name === 'AbortError') {
+          setError('Request timeout - server not responding');
+        } else if (err.message.includes('Failed to fetch')) {
+          setError(`Cannot connect to server at ${API_URL}. Make sure Docker container is running and ports are mapped correctly.`);
+        } else {
+          setError(err.message);
+        }
       } else {
         setError('An unknown error occurred');
       }
-      console.error('Authentication error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Center>
+    <Center style={{height: 'calc(50vh)'}}>
       <Paper radius="md" p="xl" withBorder {...props}>
         <Text size="lg" fw={500}>
           Witaj, zaloguj się do panelu!
