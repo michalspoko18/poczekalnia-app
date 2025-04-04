@@ -1,0 +1,27 @@
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+    border-top: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+    z-index: 100;
+}
+  
+.inner {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: var(--mantine-spacing-md) var(--mantine-spacing-md);
+  
+    @media (max-width: $mantine-breakpoint-sm) {
+      flex-direction: column;
+    }
+}
+  
+.links {
+    @media (max-width: $mantine-breakpoint-sm) {
+      margin-top: var(--mantine-spacing-lg);
+      margin-bottom: var(--mantine-spacing-sm);
+    }
+}
