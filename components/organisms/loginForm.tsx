@@ -13,11 +13,21 @@ import {
   Stack,
   Text,
   TextInput,
+  Select,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { upperFirst, useToggle } from '@mantine/hooks';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+interface AuthResponse {
+  id: number;
+  username: string;
+  email: string | null;
+  roles: string[];
+  token: string;
+  type: string;
+}
 
 export function AuthenticationForm(props: PaperProps) {
   const router = useRouter();
@@ -28,147 +38,119 @@ export function AuthenticationForm(props: PaperProps) {
   const form = useForm({
     initialValues: {
       email: '',
-      name: '',
-      password: '',
-      terms: true,
       username: '',
+      password: '',
+      role: 'patient', // Default role
     },
-
-    // validate: {
-    //   email: (val) => (type === 'register' && !/^\S+@\S+$/.test(val) ? 'Invalid email' : null),
-    //   password: (val) => (val.length <= 6 ? 'Password should include at least 6 characters' : null),
-    //   username: (val) => (!val ? 'Username is required' : null),
-    // },
+    validate: {
+      email: (val) => (type === 'register' && !/^\S+@\S+$/.test(val) ? 'Nieprawidłowy email' : null),
+      password: (val) => (val.length < 8 ? 'Hasło powinno mieć minimum 8 znaków' : null),
+      username: (val) => (!val ? 'Nazwa użytkownika jest wymagana' : null),
+    },
   });
 
   const handleSubmit = async (values: {
     username: string;
     password: string;
-    email?: string;
-    name?: string;
-    terms?: boolean;
+    email: string;
+    role?: string;
   }) => {
     setLoading(true);
     setError('');
     
-    const formData = new URLSearchParams();
-    formData.append('username', values.username);
-    formData.append('password', values.password);
-    
-    // Debug: Log request details
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    console.log('API URL:', API_URL);
-    console.log('Request payload:', formData.toString());
+    const endpoint = type === 'register' ? '/api/auth/register' : '/api/auth/login';
     
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      // Try connecting to Docker container
-      const response = await fetch(`${API_URL}/login`, {
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': '*/*',
-          'Access-Control-Allow-Origin': '*'
+          'Content-Type': 'application/json',
         },
-        body: formData.toString(),
-        signal: controller.signal,
-        credentials: 'include',
-        mode: 'cors' // Explicitly set CORS mode
+        body: JSON.stringify(
+          type === 'register'
+            ? {
+                username: values.username,
+                email: values.email,
+                password: values.password,
+                roles: [values.role || 'patient']
+              }
+            : {
+                username: values.username,
+                password: values.password
+              }
+        )
       });
-      
-      clearTimeout(timeoutId);
-      
-      // Enhanced debugging
-      console.log('Full response:', response);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers));
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Login failed: ${response.status} ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.message || `${type === 'register' ? 'Rejestracja' : 'Logowanie'} nieudane`);
       }
       
-      if (response.status === 200) {
-        console.log('Login successful');
-        localStorage.setItem('token', 'temporary-token');
-        localStorage.setItem('user', JSON.stringify({ username: values.username }));
-        router.push('/poczekalnia');
+      if (type === 'register') {
+        toggle(); // Switch to login after successful registration
+        form.setFieldValue('password', '');
+        setError('Rejestracja udana. Możesz się teraz zalogować.');
+        return;
       }
+
+      const data: AuthResponse = await response.json();
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('tokenType', data.type);
+      localStorage.setItem('user', JSON.stringify({
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        roles: data.roles
+      }));
+
+      router.push('/poczekalnia');
       
     } catch (err) { 
-      console.error('Network error details:', {
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
-      });
-      
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          setError('Request timeout - server not responding');
-        } else if (err.message.includes('Failed to fetch')) {
-          setError(`Cannot connect to server at ${API_URL}. Make sure Docker container is running and ports are mapped correctly.`);
-        } else {
-          setError(err.message);
-        }
-      } else {
-        setError('An unknown error occurred');
-      }
+      console.error(`${type === 'register' ? 'Registration' : 'Login'} error:`, err);
+      setError(err instanceof Error ? err.message : 'Wystąpił błąd');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Center style={{height: 'calc(50vh)'}}>
+    <Center style={{height: 'calc(70vh)'}}>
       <Paper radius="md" p="xl" withBorder {...props}>
         <Text size="lg" fw={500}>
-          Witaj, zaloguj się do panelu!
+          {type === 'register' ? 'Utwórz nowe konto' : 'Zaloguj się do panelu!'}
         </Text>
 
-        <Divider label="Zaloguj używając email" labelPosition="center" my="lg" />
+        <Divider label={type === 'register' ? 'Zarejestruj się' : 'Zaloguj się'} labelPosition="center" my="lg" />
 
         {error && (
-          <Text color="red" size="sm" mb="md">
+          <Text color={error.includes('udana') ? 'green' : 'red'} size="sm" mb="md">
             {error}
           </Text>
         )}
 
         <form onSubmit={form.onSubmit(handleSubmit)}>
           <Stack>
-            {/* {type === 'register' && (
-              <TextInput
-                required
-                label="Name"
-                placeholder="Your name"
-                value={form.values.name}
-                onChange={(event) => form.setFieldValue('name', event.currentTarget.value)}
-                radius="md"
-              />
-            )} */}
-
             <TextInput
               required
-              label="Login/Email"
+              label="Login"
               value={form.values.username}
               onChange={(event) => form.setFieldValue('username', event.currentTarget.value)}
               error={form.errors.username}
               radius="md"
             />
 
-            {/* {type === 'register' && (
+            {type === 'register' && (
               <TextInput
                 required
                 label="Email"
-                placeholder="hello@example.com"
+                placeholder="twoj@email.com"
                 value={form.values.email}
                 onChange={(event) => form.setFieldValue('email', event.currentTarget.value)}
                 error={form.errors.email}
                 radius="md"
               />
-            )} */}
+            )}
 
             <PasswordInput
               required
@@ -179,23 +161,27 @@ export function AuthenticationForm(props: PaperProps) {
               radius="md"
             />
 
-            {/* {type === 'register' && (
-              <Checkbox
-                label="I accept terms and conditions"
-                checked={form.values.terms}
-                onChange={(event) => form.setFieldValue('terms', event.currentTarget.checked)}
+            {type === 'register' && (
+              <Select
+                label="Typ konta"
+                data={[
+                  { value: 'patient', label: 'Pacjent' },
+                  { value: 'doctor', label: 'Lekarz' }
+                ]}
+                value={form.values.role}
+                onChange={(value) => form.setFieldValue('role', value || 'patient')}
               />
-            )} */}
+            )}
           </Stack>
 
           <Group justify="space-between" mt="xl">
-            {/* <Anchor component="button" type="button" c="dimmed" onClick={() => toggle()} size="xs">
+            <Anchor component="button" type="button" c="dimmed" onClick={() => toggle()} size="xs">
               {type === 'register'
-                ? 'Already have an account? Login'
-                : "Don't have an account? Register"}
-            </Anchor> */}
+                ? 'Masz już konto? Zaloguj się'
+                : 'Nie masz konta? Zarejestruj się'}
+            </Anchor>
             <Button type="submit" radius="xl" loading={loading}>
-              Zaloguj
+              {type === 'register' ? 'Zarejestruj' : 'Zaloguj'}
             </Button>
           </Group>
         </form>
