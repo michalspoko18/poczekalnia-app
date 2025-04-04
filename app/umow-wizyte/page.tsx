@@ -57,7 +57,7 @@ export default function Page() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Server response:', errorText);
+        // console.error('Server response:', errorText);
         throw new Error(`HTTP ${response.status}`);
       }
 
@@ -65,7 +65,7 @@ export default function Page() {
       console.log('Received visits:', data);
       setVisits(data.visits || []);
     } catch (error) {
-      console.error('Fetch error:', error);
+      // console.error('Fetch error:', error);
       setVisits([]);
     } finally {
       setLoading(false);
@@ -88,7 +88,7 @@ export default function Page() {
     });
 
     if (!token || !patientId) {
-      console.error('Missing auth data:', { token: !!token, patientId: !!patientId });
+      // console.error('Missing auth data:', { token: !!token, patientId: !!patientId });
       return;
     }
 
@@ -129,9 +129,15 @@ export default function Page() {
       setMessage(`Zarezerwowano wizytę na: ${dayjs(result.dateStart).format('DD.MM.YYYY HH:mm')}`);
       fetchVisits(selectedDate);
     } catch (error) {
-      console.error('Reservation error:', error);
-      setMessage('Błąd rezerwacji');
+      // console.error('Reservation error:', error);
+      setMessage('Błąd rezerwacji - Pacjent już ma wizytę w tym czasie');
     }
+  };
+
+  const isPastHour = (date: string, hour: number) => {
+    const now = dayjs();
+    const selectedDateTime = dayjs(date).hour(hour);
+    return selectedDateTime.isBefore(now);
   };
 
   return (
@@ -180,6 +186,13 @@ export default function Page() {
                         dayjs(v.dateStart).hour() === godzina
                       );
                       
+                      const isPast = isPastHour(selectedDate, godzina);
+                      
+                      // Don't render the button if it's in the past
+                      if (isPast) {
+                        return null;
+                      }
+
                       return (
                         <button
                           key={godzina}
