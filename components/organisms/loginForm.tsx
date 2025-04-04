@@ -95,8 +95,11 @@ export function AuthenticationForm(props: PaperProps) {
       }
 
       const data: AuthResponse = await response.json();
+      
+      // Store all auth data
       localStorage.setItem('token', data.token);
       localStorage.setItem('tokenType', data.type);
+      localStorage.setItem('patientId', data.id.toString()); // Add this line to store patientId
       localStorage.setItem('user', JSON.stringify({
         id: data.id,
         username: data.username,
