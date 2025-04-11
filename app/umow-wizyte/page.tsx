@@ -130,7 +130,7 @@ export default function Page() {
       fetchVisits(selectedDate);
     } catch (error) {
       // console.error('Reservation error:', error);
-      setMessage('Błąd rezerwacji - Pacjent już ma wizytę w tym czasie');
+      setMessage('Błąd rezerwacji - ' + (error as Error).message);
     }
   };
 
