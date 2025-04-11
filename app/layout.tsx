@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: any }) {
       <body>
         <MantineProvider theme={theme}>
           <HeaderMegaMenu />
-          <main style={{ paddingTop: '60px' }}>
+          <main>
             {children}
           </main>
           <FooterCentered />

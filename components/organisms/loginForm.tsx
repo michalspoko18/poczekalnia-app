@@ -66,6 +66,7 @@ export function AuthenticationForm(props: PaperProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(
           type === 'register'
@@ -81,22 +82,46 @@ export function AuthenticationForm(props: PaperProps) {
               }
         )
       });
-      
+
+      // First check if response is ok
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `${type === 'register' ? 'Rejestracja' : 'Logowanie'} nieudane`);
+        // Try to get error message from response
+        let errorMessage;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message;
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText;
+        }
+        throw new Error(errorMessage || `${type === 'register' ? 'Rejestracja' : 'Logowanie'} nieudane`);
       }
-      
+
+      // Try to parse successful response
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('Failed to parse response:', e);
+        throw new Error('Nieprawidłowa odpowiedź z serwera');
+      }
+
       if (type === 'register') {
-        toggle(); // Switch to login after successful registration
+        toggle();
         form.setFieldValue('password', '');
         setError('Rejestracja udana. Możesz się teraz zalogować.');
         return;
       }
 
-      const data: AuthResponse = await response.json();
+      // Validate response data
+      if (!data.token || !data.id) {
+        throw new Error('Nieprawidłowe dane logowania');
+      }
+
+      // Store auth data
       localStorage.setItem('token', data.token);
-      localStorage.setItem('tokenType', data.type);
+      localStorage.setItem('tokenType', 'Bearer'); // Add explicit token type
+      localStorage.setItem('patientId', data.id.toString());
       localStorage.setItem('user', JSON.stringify({
         id: data.id,
         username: data.username,
@@ -108,7 +133,7 @@ export function AuthenticationForm(props: PaperProps) {
       
     } catch (err) { 
       console.error(`${type === 'register' ? 'Registration' : 'Login'} error:`, err);
-      setError(err instanceof Error ? err.message : 'Wystąpił błąd');
+      setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas połączenia z serwerem');
     } finally {
       setLoading(false);
     }
