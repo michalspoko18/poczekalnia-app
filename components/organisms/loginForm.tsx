@@ -40,12 +40,15 @@ export function AuthenticationForm(props: PaperProps) {
       email: '',
       username: '',
       password: '',
-      role: 'patient', // Default role
+      phone: '', 
+      role: 'patient', 
     },
     validate: {
       email: (val) => (type === 'register' && !/^\S+@\S+$/.test(val) ? 'Nieprawidłowy email' : null),
       password: (val) => (val.length < 8 ? 'Hasło powinno mieć minimum 8 znaków' : null),
       username: (val) => (!val ? 'Nazwa użytkownika jest wymagana' : null),
+      phone: (val) =>
+        type === 'register' && !/^\d{9,15}$/.test(val) ? 'Numer telefonu powinien mieć od 9 do 15 cyfr' : null,
     },
   });
 
@@ -53,6 +56,7 @@ export function AuthenticationForm(props: PaperProps) {
     username: string;
     password: string;
     email: string;
+    phone: string;
     role?: string;
   }) => {
     setLoading(true);
@@ -66,21 +70,22 @@ export function AuthenticationForm(props: PaperProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
         },
         body: JSON.stringify(
           type === 'register'
             ? {
                 username: values.username,
                 email: values.email,
+                phone: values.phone, 
                 password: values.password,
-                roles: [values.role || 'patient']
+                roles: [values.role || 'patient'],
               }
             : {
                 username: values.username,
-                password: values.password
+                password: values.password,
               }
-        )
+        ),
       });
 
       // First check if response is ok
@@ -177,6 +182,18 @@ export function AuthenticationForm(props: PaperProps) {
               />
             )}
 
+            {type === 'register' && (
+              <TextInput
+                required
+                label="Numer telefonu"
+                placeholder="48123456789"
+                value={form.values.phone}
+                onChange={(event) => form.setFieldValue('phone', event.currentTarget.value)}
+                error={form.errors.phone}
+                radius="md"
+              />
+            )}
+
             <PasswordInput
               required
               label="Hasło"
@@ -191,7 +208,7 @@ export function AuthenticationForm(props: PaperProps) {
                 label="Typ konta"
                 data={[
                   { value: 'patient', label: 'Pacjent' },
-                  { value: 'doctor', label: 'Lekarz' }
+                  { value: 'doctor', label: 'Lekarz' },
                 ]}
                 value={form.values.role}
                 onChange={(value) => form.setFieldValue('role', value || 'patient')}
