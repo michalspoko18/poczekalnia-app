@@ -9,26 +9,36 @@ This project uses features like:
 - [Storybook](https://storybook.js.org/)
 - [Jest](https://jestjs.io/) setup with [React Testing Library](https://testing-library.com/docs/react-testing-library/intro)
 - ESLint setup with [eslint-config-mantine](https://github.com/mantinedev/eslint-config-mantine)
+- [Mantine UI](https://mantine.dev/) for modern and accessible UI components
+- OAuth 2.0 authentication with Bearer tokens
 
-## npm scripts
+## yarn scripts
 
 ### Build and dev scripts
 
-- `dev` – start dev server
-- `build` – bundle application for production
-- `analyze` – analyzes application bundle with [@next/bundle-analyzer](https://www.npmjs.com/package/@next/bundle-analyzer)
+- `yarn dev` – start the development server
+- `yarn build` – bundle the application for production
+- `yarn analyze` – analyze the application bundle with [@next/bundle-analyzer](https://www.npmjs.com/package/@next/bundle-analyzer)
 
 ### Testing scripts
 
-- `typecheck` – checks TypeScript types
-- `lint` – runs ESLint
-- `prettier:check` – checks files with Prettier
-- `jest` – runs jest tests
-- `jest:watch` – starts jest watch
-- `test` – runs `jest`, `prettier:check`, `lint` and `typecheck` scripts
+- `yarn typecheck` – check TypeScript types
+- `yarn lint` – run ESLint
+- `yarn prettier:check` – check files with Prettier
+- `yarn jest` – run Jest tests
+- `yarn jest:watch` – start Jest in watch mode
+- `yarn test` – run `jest`, `prettier:check`, `lint`, and `typecheck` scripts
 
 ### Other scripts
 
-- `storybook` – starts storybook dev server
-- `storybook:build` – build production storybook bundle to `storybook-static`
-- `prettier:write` – formats all files with Prettier
+- `yarn storybook` – start the Storybook development server
+- `yarn storybook:build` – build the production Storybook bundle to `storybook-static`
+- `yarn prettier:write` – format all files with Prettier
+
+## Installation
+
+To install dependencies, run:
+
+```bash
+yarn install
+```
