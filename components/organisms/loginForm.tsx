@@ -105,7 +105,14 @@ export function AuthenticationForm(props: PaperProps) {
       // Try to parse successful response
       let data;
       try {
-        data = await response.json();
+        if (endpoint === '/api/auth/login') {
+          // Backend zwraca czysty token jako string
+          const token = await response.text();
+          data = { token };
+        } else {
+          // Rejestracja zwraca JSON
+          data = await response.json();
+        }
       } catch (e) {
         console.error('Failed to parse response:', e);
         throw new Error('Nieprawidłowa odpowiedź z serwera');
@@ -119,20 +126,45 @@ export function AuthenticationForm(props: PaperProps) {
       }
 
       // Validate response data
-      if (!data.token || !data.id) {
+      if (!data.token) {
         throw new Error('Nieprawidłowe dane logowania');
       }
 
-      // Store auth data
+      // Store token
       localStorage.setItem('token', data.token);
       localStorage.setItem('tokenType', 'Bearer'); // Add explicit token type
-      localStorage.setItem('patientId', data.id.toString());
+
+      // Fetch user info
+      const meResponse = await fetch(`${API_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${data.token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (!meResponse.ok) {
+        throw new Error('Nie udało się pobrać danych użytkownika');
+      }
+      const meData = await meResponse.json();
+
+      // Store user info
       localStorage.setItem('user', JSON.stringify({
-        id: data.id,
-        username: data.username,
-        email: data.email,
-        roles: data.roles
+        id: meData.id,
+        username: meData.username,
+        email: meData.email,
+        roles: meData.roles,
+        patientId: meData.patientId,
+        doctorId: meData.doctorId,
+        name: meData.name,
+        surname: meData.surname,
       }));
+
+      if (meData.patientId) {
+        localStorage.setItem('patientId', meData.patientId.toString());
+      }
+      if (meData.doctorId) {
+        localStorage.setItem('doctorId', meData.doctorId.toString());
+      }
 
       router.push('/poczekalnia');
       
