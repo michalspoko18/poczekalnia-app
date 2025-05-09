@@ -54,7 +54,9 @@ export default function Home() {
           <Anchor href="/moje-wizyty">
             <Button color="green">Moje Wizyty</Button>
           </Anchor>
-          <Button color="grey">Historia Leczenia</Button>
+          <Anchor href='/profil'>
+            <Button color="grey">Profil</Button>
+          </Anchor>
         </Group>
       </Stack>
     );

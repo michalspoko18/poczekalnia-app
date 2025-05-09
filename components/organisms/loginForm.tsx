@@ -4,7 +4,6 @@ import {
   Anchor,
   Button,
   Center,
-  Checkbox,
   Divider,
   Group,
   Paper,
@@ -16,32 +15,26 @@ import {
   Select,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { upperFirst, useToggle } from '@mantine/hooks';
+import { useToggle } from '@mantine/hooks';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-interface AuthResponse {
-  id: number;
-  username: string;
-  email: string | null;
-  roles: string[];
-  token: string;
-  type: string;
-}
+import { useAuth } from '@/hooks/useAuth'; 
 
 export function AuthenticationForm(props: PaperProps) {
   const router = useRouter();
+  const { user } = useAuth(); 
   const [type, toggle] = useToggle(['login', 'register']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [smsNotificationsEnabled, setSmsNotificationsEnabled] = useState(false);
+
   const form = useForm({
     initialValues: {
       email: '',
       username: '',
       password: '',
-      phone: '', 
-      role: 'patient', 
+      phone: '',
+      role: 'patient',
     },
     validate: {
       email: (val) => (type === 'register' && !/^\S+@\S+$/.test(val) ? 'Nieprawidłowy email' : null),
@@ -52,34 +45,61 @@ export function AuthenticationForm(props: PaperProps) {
     },
   });
 
-  const handleSubmit = async (values: {
-    username: string;
-    password: string;
-    email: string;
-    phone: string;
-    role?: string;
-  }) => {
+  const handleSmsToggle = async () => {
+    console.log('Patient data:', user?.patient);
+    if (!user?.patient?.id) {
+      setError('Brak ID pacjenta. Nie można zmienić ustawień powiadomień SMS.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/patients/${user.patient.id}/notifications`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ smsNotificationsEnabled: !smsNotificationsEnabled }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Nie udało się zmienić ustawień powiadomień SMS');
+      }
+
+      setSmsNotificationsEnabled((prev) => !prev);
+    } catch (err) {
+      setError('Wystąpił błąd podczas zmiany ustawień powiadomień SMS');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (values: typeof form.values) => {
     setLoading(true);
     setError('');
-    
+
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
     const endpoint = type === 'register' ? '/api/auth/register' : '/api/auth/login';
-    
+
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify(
           type === 'register'
             ? {
                 username: values.username,
                 email: values.email,
-                phone: values.phone, 
+                phone: values.phone,
                 password: values.password,
-                roles: [values.role || 'patient'],
+                roles: [values.role],
               }
             : {
                 username: values.username,
@@ -88,7 +108,6 @@ export function AuthenticationForm(props: PaperProps) {
         ),
       });
 
-      // First check if response is ok
       if (!response.ok) {
         // Try to get error message from response
         let errorMessage;
@@ -105,7 +124,14 @@ export function AuthenticationForm(props: PaperProps) {
       // Try to parse successful response
       let data;
       try {
-        data = await response.json();
+        if (endpoint === '/api/auth/login') {
+          // Backend zwraca czysty token jako string
+          const token = await response.text();
+          data = { token };
+        } else {
+          // Rejestracja zwraca JSON
+          data = await response.json();
+        }
       } catch (e) {
         console.error('Failed to parse response:', e);
         throw new Error('Nieprawidłowa odpowiedź z serwera');
@@ -113,39 +139,62 @@ export function AuthenticationForm(props: PaperProps) {
 
       if (type === 'register') {
         toggle();
-        form.setFieldValue('password', '');
-        setError('Rejestracja udana. Możesz się teraz zalogować.');
+        form.reset();
+        setError('Rejestracja zakończona sukcesem. Możesz się teraz zalogować.');
         return;
       }
 
       // Validate response data
-      if (!data.token || !data.id) {
+      if (!data.token) {
         throw new Error('Nieprawidłowe dane logowania');
       }
 
-      // Store auth data
+      // Store token
       localStorage.setItem('token', data.token);
       localStorage.setItem('tokenType', 'Bearer'); // Add explicit token type
-      localStorage.setItem('patientId', data.id.toString());
+
+      // Fetch user info
+      const meResponse = await fetch(`${API_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${data.token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (!meResponse.ok) {
+        throw new Error('Nie udało się pobrać danych użytkownika');
+      }
+      const meData = await meResponse.json();
+
+      // Store user info
       localStorage.setItem('user', JSON.stringify({
-        id: data.id,
-        username: data.username,
-        email: data.email,
-        roles: data.roles
+        id: meData.id,
+        username: meData.username,
+        email: meData.email,
+        roles: meData.roles,
+        patientId: meData.patientId,
+        doctorId: meData.doctorId,
+        name: meData.name,
+        surname: meData.surname,
       }));
 
-      router.push('/poczekalnia');
-      
-    } catch (err) { 
-      console.error(`${type === 'register' ? 'Registration' : 'Login'} error:`, err);
-      setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas połączenia z serwerem');
+      if (meData.patientId) {
+        localStorage.setItem('patientId', meData.patientId.toString());
+      }
+      if (meData.doctorId) {
+        localStorage.setItem('doctorId', meData.doctorId.toString());
+      }
+
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas przesyłania formularza');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Center style={{height: 'calc(70vh)'}}>
+    <Center style={{ height: 'calc(70vh)' }}>
       <Paper radius="md" p="xl" withBorder {...props}>
         <Text size="lg" fw={500}>
           {type === 'register' ? 'Utwórz nowe konto' : 'Zaloguj się do panelu!'}
