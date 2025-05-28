@@ -1,6 +1,7 @@
 'use client';
 
-import { Center, Loader } from '@mantine/core';
+import { Center, Loader, Button, Text, Notification } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { useState, useEffect } from 'react';
 import { DatePickerInput } from '@mantine/dates';
 import '@mantine/dates/styles.css';
@@ -13,6 +14,7 @@ export default function Page() {
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showNotification, setShowNotification] = useState<null | string>(null);
 
   const lekarze = [
     { id: 1, imie: 'Dr. Polak', interval: 2 },
@@ -22,50 +24,60 @@ export default function Page() {
 
   const godzinyBazowe = [8, 10, 12, 14, 16];
 
+  // Ustaw patientId w localStorage jeśli go nie ma
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token && !localStorage.getItem('patientId')) {
+      (async () => {
+        try {
+          const response = await fetch('http://localhost:8080/api/auth/me', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (response.ok) {
+            const meData = await response.json();
+            if (meData.patient?.id) {
+              localStorage.setItem('patientId', meData.patient.id.toString());
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      })();
+    }
+  }, []);
+
   const fetchVisits = async (date: string) => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
     setLoading(true);
     try {
-      console.log('Fetching visits with:', {
-        date,
-        token: token.substring(0, 20) + '...',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const response = await fetch('http://localhost:8080/api/visit/list', {
+      const response = await fetch('http://localhost:8080/api/visits/list', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          date: date // Make sure date is in YYYY-MM-DD format
-        }),
+        body: JSON.stringify({ date }),
       });
 
-      // If response is 404, it means no visits for that date
       if (response.status === 404) {
-        console.log('No visits found for date:', date);
         setVisits([]);
         return;
       }
 
       if (!response.ok) {
-        const errorText = await response.text();
-        // console.error('Server response:', errorText);
         throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Received visits:', data);
       setVisits(data.visits || []);
     } catch (error) {
-      // console.error('Fetch error:', error);
       setVisits([]);
     } finally {
       setLoading(false);
@@ -79,21 +91,13 @@ export default function Page() {
   const handleReservation = async (lekarzId: number, godzina: number) => {
     const token = localStorage.getItem('token');
     const patientId = localStorage.getItem('patientId');
-    
-    console.log('Reservation attempt with:', {
-      token,
-      patientId,
-      lekarzId,
-      godzina
-    });
 
     if (!token || !patientId) {
-      // console.error('Missing auth data:', { token: !!token, patientId: !!patientId });
+      setMessage('Brak danych pacjenta. Zaloguj się ponownie.');
       return;
     }
 
     try {
-      // Create dateStart and dateEnd from selectedDate and godzina
       const dateStart = dayjs(selectedDate)
         .hour(godzina)
         .minute(0)
@@ -106,7 +110,7 @@ export default function Page() {
         .second(0)
         .format('YYYY-MM-DD HH:mm:ss');
 
-      const res = await fetch('http://localhost:8080/api/visit/reservation', {
+      const res = await fetch('http://localhost:8080/api/visits/reservation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -126,12 +130,31 @@ export default function Page() {
       }
 
       const result = await res.json();
-      setMessage(`Zarezerwowano wizytę na: ${dayjs(result.dateStart).format('DD.MM.YYYY HH:mm')}`);
+      setShowNotification(`Zarezerwowano wizytę na: ${dayjs(result.dateStart).format('DD.MM.YYYY HH:mm')}`);
+      setMessage('');
       fetchVisits(selectedDate);
     } catch (error) {
-      // console.error('Reservation error:', error);
       setMessage('Błąd rezerwacji - ' + (error as Error).message);
     }
+  };
+
+  const openReservationModal = (lekarzId: number, godzina: number) => {
+    modals.openConfirmModal({
+      title: 'Potwierdź rezerwację',
+      size: 'sm',
+      radius: 'md',
+      withCloseButton: false,
+      centered: true, 
+      zIndex: 5000,  
+      children: (
+        <Text size="sm">
+          Czy na pewno chcesz zarezerwować wizytę u wybranego lekarza na godzinę {godzina}:00?
+        </Text>
+      ),
+      labels: { confirm: 'Rezerwuj', cancel: 'Anuluj' },
+      onCancel: () => {},
+      onConfirm: () => handleReservation(lekarzId, godzina),
+    });
   };
 
   const isPastHour = (date: string, hour: number) => {
@@ -143,6 +166,28 @@ export default function Page() {
   return (
     <Center>
       <div className="max-w-2xl mx-auto p-6">
+        {showNotification && (
+          <div
+            style={{
+              position: 'fixed',
+              right: 24,
+              bottom: 24,
+              zIndex: 6000,
+              maxWidth: 360,
+            }}
+          >
+            <Notification
+              radius="xl"
+              title="Rezerwacja potwierdzona"
+              onClose={() => setShowNotification(null)}
+              withCloseButton
+              color="green"
+            >
+              {showNotification}
+            </Notification>
+          </div>
+        )}
+
         <h1 className="text-3xl font-bold mb-6">Wolne terminy</h1>
 
         <div className="bg-gray-100 p-4 rounded mb-6">
@@ -182,28 +227,32 @@ export default function Page() {
                     .filter((h) => h % lekarz.interval === 0)
                     .map((godzina) => {
                       const visit = visits.find(
-                        v => v.doctorId === lekarz.id && 
-                        dayjs(v.dateStart).hour() === godzina
+                        v => v.doctorId === lekarz.id && dayjs(v.dateStart).hour() === godzina
                       );
                       
+                      const patientHasVisitAtThisHour = visits.some(
+                        v =>
+                          dayjs(v.dateStart).isSame(
+                            dayjs(selectedDate).hour(godzina).minute(0).second(0),
+                            'hour'
+                          )
+                      );
+
                       const isPast = isPastHour(selectedDate, godzina);
-                      
-                      // Don't render the button if it's in the past
+
                       if (isPast) {
                         return null;
                       }
 
                       return (
-                        <button
+                        <Button
                           key={godzina}
-                          disabled={!!visit || loading}
-                          onClick={() => handleReservation(lekarz.id, godzina)}
-                          className={`px-4 py-2 rounded text-white ${
-                            visit ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
-                          }`}
+                          disabled={!!visit || loading || patientHasVisitAtThisHour}
+                          onClick={() => openReservationModal(lekarz.id, godzina)}
+                          color={visit || patientHasVisitAtThisHour ? 'gray' : 'green'}
                         >
                           {godzina}:00
-                        </button>
+                        </Button>
                       );
                     })}
                 </div>

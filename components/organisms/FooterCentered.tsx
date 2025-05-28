@@ -6,7 +6,7 @@ import classes from '../../styles/FooterCentered.module.css';
 const links = [
   { link: '/', label: 'Start' },
   { link: '/poczekalnia', label: 'Poczekalnia' },
-  { link: '#', label: 'O projekcie' },
+  { link: 'https://github.com/Oschly/poczekalnia-server/blob/main/dokumentacja.md', label: 'O projekcie' },
 ];
 
 export function FooterCentered() {

@@ -177,3 +177,12 @@ import {
       </Box>
     );
   }
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('patientId');
+    localStorage.removeItem('doctorId');
+    localStorage.removeItem('tokenType');
+    window.location.href = '/login'; 
+  };

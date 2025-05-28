@@ -17,33 +17,22 @@ export default function Home() {
   }
 
   const renderRoleBasedContent = () => {
-    if (user?.roles.includes('ROLE_ADMIN')) {
-      return (
-        <Stack align="center">
-          <Title order={2}>Panel Administratora</Title>
-          <Group>
-            <Button color="blue">Zarządzaj Użytkownikami</Button>
-            <Button color="green">Zarządzaj Placówkami</Button>
-            <Button color="yellow">Raporty Systemowe</Button>
-          </Group>
-        </Stack>
-      );
-    }
-
     if (user?.roles.includes('ROLE_DOCTOR')) {
       return (
         <Stack align="center">
           <Title order={2}>Panel Lekarza</Title>
           <Group>
-            <Button color="blue">Mój Kalendarz</Button>
-            <Button color="green">Lista Pacjentów</Button>
-            <Button color="yellow">Historia Wizyt</Button>
+          <Anchor href="/moje-wizyty">
+            <Button color="green">Moje Wizyty</Button>
+          </Anchor>
+          <Anchor href='/profil'>
+            <Button color="grey">Profil</Button>
+          </Anchor>
           </Group>
         </Stack>
       );
     }
-
-    // Default case - assume ROLE_PATIENT or basic user
+    
     return (
       <Stack align="center">
         <Title order={2}>Panel Pacjenta</Title>

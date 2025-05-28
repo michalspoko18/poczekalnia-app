@@ -6,6 +6,7 @@ import {
   Center,
   Divider,
   Group,
+  Notification,
   Paper,
   PaperProps,
   PasswordInput,
@@ -27,6 +28,7 @@ export function AuthenticationForm(props: PaperProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [smsNotificationsEnabled, setSmsNotificationsEnabled] = useState(false);
+  const [showNotification, setShowNotification] = useState<string | null>(null);
 
   const form = useForm({
     initialValues: {
@@ -35,6 +37,10 @@ export function AuthenticationForm(props: PaperProps) {
       password: '',
       phone: '',
       role: 'patient',
+      name: '',
+      surname: '',
+      pesel: '',
+      jobIdNumber: '',
     },
     validate: {
       email: (val) => (type === 'register' && !/^\S+@\S+$/.test(val) ? 'Nieprawidłowy email' : null),
@@ -81,9 +87,46 @@ export function AuthenticationForm(props: PaperProps) {
   const handleSubmit = async (values: typeof form.values) => {
     setLoading(true);
     setError('');
+    setShowNotification(null);
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    const endpoint = type === 'register' ? '/api/auth/register' : '/api/auth/login';
+
+    let endpoint = '';
+    let body: any = {};
+
+    if (type === 'register') {
+      if (values.role === 'doctor') {
+        endpoint = '/api/auth/register/doctor';
+        body = {
+          username: values.username,
+          email: values.email,
+          phone: values.phone,
+          password: values.password,
+          roles: ['doctor'],
+          name: values.name,
+          surname: values.surname,
+          jobIdNumber: values.jobIdNumber,
+        };
+      } else {
+        endpoint = '/api/auth/register/patient';
+        body = {
+          username: values.username,
+          email: values.email,
+          phone: values.phone,
+          password: values.password,
+          roles: ['patient'],
+          name: values.name,
+          surname: values.surname,
+          pesel: values.pesel,
+        };
+      }
+    } else {
+      endpoint = '/api/auth/login';
+      body = {
+        username: values.username,
+        password: values.password,
+      };
+    }
 
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
@@ -92,44 +135,34 @@ export function AuthenticationForm(props: PaperProps) {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify(
-          type === 'register'
-            ? {
-                username: values.username,
-                email: values.email,
-                phone: values.phone,
-                password: values.password,
-                roles: [values.role],
-              }
-            : {
-                username: values.username,
-                password: values.password,
-              }
-        ),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        // Try to get error message from response
         let errorMessage;
         try {
           const errorData = await response.json();
           errorMessage = errorData.message;
         } catch (e) {
-          // If JSON parsing fails, use status text
           errorMessage = response.statusText;
         }
         throw new Error(errorMessage || `${type === 'register' ? 'Rejestracja' : 'Logowanie'} nieudane`);
       }
 
-      // Try to parse successful response
+      if (type === 'register') {
+        const data = await response.json();
+        setShowNotification(data.message || 'Rejestracja zakończona sukcesem!');
+        toggle();
+        form.reset();
+        return;
+      }
+
       let data;
       try {
         if (endpoint === '/api/auth/login') {
-          // Backend zwraca czysty token jako string
           const token = await response.text();
           data = { token };
         } else {
-          // Rejestracja zwraca JSON
           data = await response.json();
         }
       } catch (e) {
@@ -144,16 +177,13 @@ export function AuthenticationForm(props: PaperProps) {
         return;
       }
 
-      // Validate response data
       if (!data.token) {
         throw new Error('Nieprawidłowe dane logowania');
       }
 
-      // Store token
       localStorage.setItem('token', data.token);
-      localStorage.setItem('tokenType', 'Bearer'); // Add explicit token type
+      localStorage.setItem('tokenType', 'Bearer'); 
 
-      // Fetch user info
       const meResponse = await fetch(`${API_URL}/api/auth/me`, {
         method: 'GET',
         headers: {
@@ -166,7 +196,6 @@ export function AuthenticationForm(props: PaperProps) {
       }
       const meData = await meResponse.json();
 
-      // Store user info
       localStorage.setItem('user', JSON.stringify({
         id: meData.id,
         username: meData.username,
@@ -185,7 +214,7 @@ export function AuthenticationForm(props: PaperProps) {
         localStorage.setItem('doctorId', meData.doctorId.toString());
       }
 
-      router.push('/dashboard');
+      router.push('/poczekalnia');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas przesyłania formularza');
     } finally {
@@ -194,12 +223,33 @@ export function AuthenticationForm(props: PaperProps) {
   };
 
   return (
-    <Center style={{ height: 'calc(70vh)' }}>
+    <Center style={{ marginTop: '150px', height: 'calc(70vh)' }}>
       <Paper radius="md" p="xl" withBorder {...props}>
+        {showNotification && (
+          <div
+            style={{
+              position: 'fixed',
+              right: 24,
+              bottom: 24,
+              zIndex: 6000,
+              maxWidth: 360,
+            }}
+          >
+            <Notification
+              radius="xl"
+              title="Rejestracja"
+              onClose={() => setShowNotification(null)}
+              withCloseButton
+              color="green"
+            >
+              {showNotification}
+            </Notification>
+          </div>
+        )}
+
         <Text size="lg" fw={500}>
           {type === 'register' ? 'Utwórz nowe konto' : 'Zaloguj się do panelu!'}
         </Text>
-
         <Divider label={type === 'register' ? 'Zarejestruj się' : 'Zaloguj się'} labelPosition="center" my="lg" />
 
         {error && (
@@ -220,27 +270,67 @@ export function AuthenticationForm(props: PaperProps) {
             />
 
             {type === 'register' && (
-              <TextInput
-                required
-                label="Email"
-                placeholder="twoj@email.com"
-                value={form.values.email}
-                onChange={(event) => form.setFieldValue('email', event.currentTarget.value)}
-                error={form.errors.email}
-                radius="md"
-              />
-            )}
-
-            {type === 'register' && (
-              <TextInput
-                required
-                label="Numer telefonu"
-                placeholder="48123456789"
-                value={form.values.phone}
-                onChange={(event) => form.setFieldValue('phone', event.currentTarget.value)}
-                error={form.errors.phone}
-                radius="md"
-              />
+              <>
+                <TextInput
+                  required
+                  label="Email"
+                  placeholder="twoj@email.com"
+                  value={form.values.email}
+                  onChange={(event) => form.setFieldValue('email', event.currentTarget.value)}
+                  error={form.errors.email}
+                  radius="md"
+                />
+                <TextInput
+                  required
+                  label="Numer telefonu"
+                  placeholder="48123456789"
+                  value={form.values.phone}
+                  onChange={(event) => form.setFieldValue('phone', event.currentTarget.value)}
+                  error={form.errors.phone}
+                  radius="md"
+                />
+                <TextInput
+                  required
+                  label="Imię"
+                  value={form.values.name}
+                  onChange={(event) => form.setFieldValue('name', event.currentTarget.value)}
+                  radius="md"
+                />
+                <TextInput
+                  required
+                  label="Nazwisko"
+                  value={form.values.surname}
+                  onChange={(event) => form.setFieldValue('surname', event.currentTarget.value)}
+                  radius="md"
+                />
+                <Select
+                  label="Typ konta"
+                  data={[
+                    { value: 'patient', label: 'Pacjent' },
+                    { value: 'doctor', label: 'Lekarz' },
+                  ]}
+                  value={form.values.role}
+                  onChange={(value) => form.setFieldValue('role', value || 'patient')}
+                />
+                {form.values.role === 'patient' && (
+                  <TextInput
+                    required
+                    label="PESEL"
+                    value={form.values.pesel}
+                    onChange={(event) => form.setFieldValue('pesel', event.currentTarget.value)}
+                    radius="md"
+                  />
+                )}
+                {form.values.role === 'doctor' && (
+                  <TextInput
+                    required
+                    label="Numer PWZ"
+                    value={form.values.jobIdNumber}
+                    onChange={(event) => form.setFieldValue('jobIdNumber', event.currentTarget.value)}
+                    radius="md"
+                  />
+                )}
+              </>
             )}
 
             <PasswordInput
@@ -251,18 +341,6 @@ export function AuthenticationForm(props: PaperProps) {
               error={form.errors.password}
               radius="md"
             />
-
-            {type === 'register' && (
-              <Select
-                label="Typ konta"
-                data={[
-                  { value: 'patient', label: 'Pacjent' },
-                  { value: 'doctor', label: 'Lekarz' },
-                ]}
-                value={form.values.role}
-                onChange={(value) => form.setFieldValue('role', value || 'patient')}
-              />
-            )}
           </Stack>
 
           <Group justify="space-between" mt="xl">

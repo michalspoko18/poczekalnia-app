@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Center, Loader, Card, Text, Group, Button } from '@mantine/core';
+import { Center, Loader, Card, Text, Group } from '@mantine/core';
 import dayjs from 'dayjs';
 import { useRouter } from 'next/navigation';
 
@@ -19,7 +19,7 @@ interface Visit {
   doctorId: number;
   dateStart: string;
   dateEnd: string;
-  doctor?: Doctor; // Add doctor info to Visit interface
+  doctor?: Doctor;
 }
 
 export default function MyVisitsPage() {
@@ -29,7 +29,7 @@ export default function MyVisitsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchMyVisits();
+    fetchUserAndVisits();
   }, []);
 
   const fetchDoctorInfo = async (doctorId: number): Promise<Doctor | null> => {
@@ -37,7 +37,7 @@ export default function MyVisitsPage() {
     if (!token) return null;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/doctor/list/${doctorId}`, {
+      const response = await fetch(`http://localhost:8080/api/doctors/${doctorId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -49,8 +49,7 @@ export default function MyVisitsPage() {
       }
 
       return await response.json();
-    } catch (error) {
-      console.error(`Failed to fetch doctor info for ID ${doctorId}:`, error);
+    } catch {
       return null;
     }
   };
@@ -61,17 +60,41 @@ export default function MyVisitsPage() {
     });
   };
 
-  const fetchMyVisits = async () => {
+  const fetchUserAndVisits = async () => {
     const token = localStorage.getItem('token');
-    const patientId = localStorage.getItem('patientId');
-
-    if (!token || !patientId) {
+    if (!token) {
       router.push('/login');
       return;
     }
 
     try {
-      const response = await fetch(`http://localhost:8080/api/visit/list/patient/${patientId}`, {
+      const userRes = await fetch('http://localhost:8080/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!userRes.ok) throw new Error('Brak autoryzacji');
+      const user = await userRes.json();
+
+      let endpoint = '';
+      let id = '';
+
+      if (user.roles.includes('ROLE_DOCTOR')) {
+        id = user.doctor?.id?.toString() || '';
+        endpoint = `http://localhost:8080/api/visits/list/doctor/${id}`;
+      } else {
+        id = user.patient?.id?.toString() || '';
+        endpoint = `http://localhost:8080/api/visits/list/patient/${id}`;
+      }
+
+      if (!id) {
+        setError('Brak ID użytkownika');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(endpoint, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -87,21 +110,17 @@ export default function MyVisitsPage() {
       if (!data.visits) {
         throw new Error('Nieprawidłowy format danych');
       }
-      
-      // Fetch doctor info for each visit
+
       const visitsWithDoctors = await Promise.all(
         data.visits.map(async (visit: Visit) => {
           const doctorInfo = await fetchDoctorInfo(visit.doctorId);
           return { ...visit, doctor: doctorInfo };
         })
       );
-      
-      // Sort visits before setting state
       const sortedVisits = sortVisits(visitsWithDoctors);
       setVisits(sortedVisits);
     } catch (error) {
-      console.error('Failed to fetch visits:', error);
-      setError('Nie udało się pobrać listy wizyt');
+      // setError('Nie udało się pobrać listy wizyt');
     } finally {
       setLoading(false);
     }
@@ -114,35 +133,6 @@ export default function MyVisitsPage() {
     ));
   };
 
-  const cancelVisit = async (visitId: number) => {
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const response = await fetch(`http://localhost:8080/api/visit/${visitId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Nie udało się anulować wizyty');
-      }
-
-      // Refresh visits list after cancellation
-      await fetchMyVisits();
-    } catch (error) {
-      console.error('Failed to cancel visit:', error);
-      setError('Nie udało się anulować wizyty');
-    }
-  };
-
   if (loading) {
     return (
       <Center className="h-screen">
@@ -153,7 +143,7 @@ export default function MyVisitsPage() {
 
   return (
     <Center>
-      <div className="w-[60%] p-6">
+      <div className="w-[90%] p-6">
         <h1 className="text-3xl font-bold mb-6">Moje wizyty</h1>
         
         {error && (
@@ -167,14 +157,18 @@ export default function MyVisitsPage() {
             Nie masz żadnych umówionych wizyt
           </Text>
         ) : (
-          <div className="space-y-4">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '1.5rem',
+            }}
+          >
             {filterAndSortVisits().map((visit) => (
-              <Card key={visit.visitId} shadow="sm" padding="lg" radius="md" withBorder mb="md">
+              <Card key={visit.visitId} shadow="sm" padding="lg" radius="md" withBorder>
                 <Group position="apart" mb="xs">
                   <Text weight={500}>
-                    {visit.doctor 
-                      ? `${visit.doctor.name} ${visit.doctor.surname}`
-                      : `Lekarz ID: ${visit.doctorId}`
+                    {`Lekarz ID: ${visit.doctorId}`
                     }
                   </Text>
                   {visit.doctor && (

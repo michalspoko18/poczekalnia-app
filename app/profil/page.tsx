@@ -10,6 +10,8 @@ export default function UserPanel() {
   const [smsNotificationsEnabled, setSmsNotificationsEnabled] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<number | null>(null);
+  const [patientId, setPatientId] = useState<number | null>(null);
+  const [userData, setUserData] = useState<any>(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -27,9 +29,9 @@ export default function UserPanel() {
         }
 
         const data = await response.json();
-        console.log('Response from /api/auth/me:', data); // Logowanie danych
+        setUserData(data);
         setSmsNotificationsEnabled(data.patient?.smsNotificationsEnabled || false);
-        setUserId(data.id);
+        setUserId(data.patient?.id || null);
         localStorage.setItem('userId', data.id.toString());
       } catch (err) {
         setError('Wystąpił błąd podczas pobierania danych użytkownika');
@@ -48,16 +50,12 @@ export default function UserPanel() {
   }, [user]);
 
   const handleSmsToggle = async () => {
-    console.log('Patient ID:', user?.patient?.id); 
-    if (!user?.patient?.id) {
-      setError('Brak ID pacjenta. Nie można zmienić ustawień powiadomień SMS.');
-      return;
-    }
+    console.log('Patient ID:', userId); 
 
     try {
       setLoading(true);
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/patients/${user.patient.id}/notifications`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/patients/${userId}/notifications`,
         {
           method: 'PUT',
           headers: {
@@ -105,7 +103,7 @@ export default function UserPanel() {
   }
 
   return (
-    <Center>
+    <Center style={{ paddingTop: '50px' }}>
       <Stack align="center">
         <Text size="xl" fw={700}>
           Profil użytkownika
@@ -117,18 +115,18 @@ export default function UserPanel() {
           <strong>Email:</strong> {user?.email}
         </Text>
         <Text>
-          <strong>Telefon:</strong> {user?.phone}
+          <strong>Telefon:</strong> {userData?.phone}
         </Text>
         <Text>
-          <strong>ID użytkownika:</strong> {userId}
+          <strong>ID użytkownika:</strong> {user?.id}
         </Text>
         {user?.roles.includes('ROLE_PATIENT') && (
           <>
             <Text>
-              <strong>PESEL:</strong> {user?.patient?.pesel}
+              <strong>PESEL:</strong> {userData?.patient?.pesel}
             </Text>
             <Group>
-              <Text>Powiadomienia SMS:</Text>
+              <Text><strong>Powiadomienia SMS:</strong></Text>
               <Switch
                 checked={smsNotificationsEnabled}
                 onChange={handleSmsToggle}

@@ -24,6 +24,8 @@
     "@mantine/dates": "^7.17.3",
     "@mantine/form": "^7.17.1",
     "@mantine/hooks": "^7.17.3",
+    "@mantine/modals": "^8.0.1",
+    "@mantine/notifications": "^8.0.1",
     "@next/bundle-analyzer": "^15.1.5",
     "@tabler/icons-react": "^3.28.1",
     "dayjs": "^1.11.13",
